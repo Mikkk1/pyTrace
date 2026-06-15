@@ -13,6 +13,7 @@ import TestCaseInput from './components/Editor/TestCaseInput';
 import Header from './components/Layout/Header';
 import Footer from './components/Layout/Footer';
 import SidebarSection from './components/Layout/SidebarSection';
+import { PopoutToggleButton, PopoutNotice } from './components/Layout/PopoutControl';
 import { useTraceStore, type SectionId } from './store/traceStore';
 import { useTracer } from './hooks/useTracer';
 import { isCollectionValue, filterDataLocals } from './lib/collections';
@@ -64,6 +65,10 @@ export default function App() {
   const steps       = useTraceStore((s) => s.steps);
   const sectionCollapsed   = useTraceStore((s) => s.sectionCollapsed);
   const adjustSectionSizes = useTraceStore((s) => s.adjustSectionSizes);
+  const sessionId   = useTraceStore((s) => s.sessionId);
+  const popoutOpen  = useTraceStore((s) => s.popoutOpen);
+  const setPopoutOpen = useTraceStore((s) => s.setPopoutOpen);
+  const popoutWindowRef = useRef<Window | null>(null);
 
   const { runTrace, runTraceLive } = useTracer();
   const inputsRef = useRef<Record<string, unknown>>({});
@@ -127,6 +132,33 @@ export default function App() {
     }, LIVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [mode, code, inputs, inputsError, runTraceLive]);
+
+  // Detachable visualizer popout: poll for the user closing the window directly
+  useEffect(() => {
+    if (!popoutOpen) return;
+    const interval = setInterval(() => {
+      if (popoutWindowRef.current?.closed) {
+        popoutWindowRef.current = null;
+        setPopoutOpen(false);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [popoutOpen, setPopoutOpen]);
+
+  const handleTogglePopout = () => {
+    if (popoutOpen) {
+      popoutWindowRef.current?.close();
+      popoutWindowRef.current = null;
+      setPopoutOpen(false);
+      return;
+    }
+    popoutWindowRef.current = window.open(
+      `/visualizer?session=${sessionId}`,
+      'pytrace-vis',
+      'width=900,height=800',
+    );
+    setPopoutOpen(true);
+  };
 
   const handleInputsChange = useCallback(
     (parsed: Record<string, unknown> | null, err: string | null) => {
@@ -207,6 +239,11 @@ export default function App() {
           className="shrink-0 flex flex-col overflow-hidden border-l border-[#2d2d2d]"
           style={{ width: `${sidebarFrac * 100}%`, background: '#1e1e1e' }}
         >
+          <PopoutToggleButton popoutOpen={popoutOpen} onToggle={handleTogglePopout} />
+
+          {popoutOpen ? (
+            <PopoutNotice onReattach={handleTogglePopout} />
+          ) : (
           <div ref={sectionsRef} className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <SidebarSection
               id="arrays"
@@ -263,6 +300,7 @@ export default function App() {
               </SidebarSection>
             )}
           </div>
+          )}
         </aside>
       </div>
 

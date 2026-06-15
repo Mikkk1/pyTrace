@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import type { TraceResult, TraceStep } from '../types/trace';
+import { channelName, type StepUpdateMessage } from '../lib/broadcast';
 
 export type AppMode = 'trace' | 'live';
 
@@ -22,6 +23,22 @@ const DEFAULT_SECTION_COLLAPSED: Record<SectionId, boolean> = {
   complexity: true,
   recursionTree: false,
 };
+
+// Detachable visualizer popout (Phase 7 Section 4): each app instance gets a
+// random session id, and broadcasts the current step to a channel named after
+// it so a popout window opened with ?session=<id> can mirror the panels.
+const sessionId = crypto.randomUUID();
+const broadcastChannel = new BroadcastChannel(channelName(sessionId));
+
+function broadcastStep(
+  step: TraceStep | null,
+  steps: TraceStep[],
+  currentStepIndex: number,
+  result: TraceResult | null,
+): void {
+  const message: StepUpdateMessage = { type: 'STEP_UPDATE', step, steps, currentStepIndex, result };
+  broadcastChannel.postMessage(message);
+}
 
 interface TraceState {
   // Raw trace data
@@ -48,6 +65,11 @@ interface TraceState {
   // Sidebar section layout (fractions of expanded sidebar height, persisted across steps)
   sectionSizes: Record<SectionId, number>;
   sectionCollapsed: Record<SectionId, boolean>;
+
+  // Detachable visualizer popout
+  sessionId: string;
+  popoutOpen: boolean;
+  setPopoutOpen: (open: boolean) => void;
 
   // Actions
   setResult: (result: TraceResult) => void;
@@ -82,21 +104,31 @@ export const useTraceStore = create<TraceState>((set, get) => ({
   sectionSizes: { ...DEFAULT_SECTION_SIZES },
   sectionCollapsed: { ...DEFAULT_SECTION_COLLAPSED },
 
-  setResult: (result) =>
+  sessionId,
+  popoutOpen: false,
+  setPopoutOpen: (open) => set({ popoutOpen: open }),
+
+  setResult: (result) => {
+    const currentStepIndex = 0;
+    const currentStep = result.steps[0] ?? null;
     set({
       result,
       steps: result.steps,
       totalSteps: result.total_steps,
-      currentStepIndex: 0,
-      currentStep: result.steps[0] ?? null,
+      currentStepIndex,
+      currentStep,
       error: result.error ?? null,
       notes: result.notes ?? [],
-    }),
+    });
+    broadcastStep(currentStep, result.steps, currentStepIndex, result);
+  },
 
   setCurrentStepIndex: (index) => {
-    const { steps } = get();
+    const { steps, result } = get();
     const clamped = Math.max(0, Math.min(index, steps.length - 1));
-    set({ currentStepIndex: clamped, currentStep: steps[clamped] ?? null });
+    const currentStep = steps[clamped] ?? null;
+    set({ currentStepIndex: clamped, currentStep });
+    broadcastStep(currentStep, steps, clamped, result);
   },
 
   setLoading: (loading) => set({ isLoading: loading }),
@@ -130,6 +162,7 @@ export const useTraceStore = create<TraceState>((set, get) => ({
     // Either no error, or an error with steps captured before the crash —
     // show the last captured step so panels reflect pre-crash state.
     const lastIndex = Math.max(0, result.steps.length - 1);
+    const currentStep = result.steps[lastIndex] ?? null;
     set({
       result,
       steps: result.steps,
@@ -138,8 +171,9 @@ export const useTraceStore = create<TraceState>((set, get) => ({
       liveError: result.error ?? null,
       notes: result.notes ?? [],
       currentStepIndex: lastIndex,
-      currentStep: result.steps[lastIndex] ?? null,
+      currentStep,
     });
+    broadcastStep(currentStep, result.steps, lastIndex, result);
   },
 
   toggleSectionCollapsed: (id) =>
@@ -165,3 +199,11 @@ export const useTraceStore = create<TraceState>((set, get) => ({
       return { sectionSizes: { ...sizes, [a]: newA, [b]: newB } };
     }),
 }));
+
+// A freshly opened popout window has missed every prior STEP_UPDATE, so it
+// asks for the current state on connect; reply with whatever we have now.
+broadcastChannel.onmessage = (event: MessageEvent) => {
+  if (event.data?.type !== 'REQUEST_STATE') return;
+  const { currentStep, steps, currentStepIndex, result } = useTraceStore.getState();
+  broadcastStep(currentStep, steps, currentStepIndex, result);
+};
