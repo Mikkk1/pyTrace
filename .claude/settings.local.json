@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(ls -la backend/.env* frontend/.env*)",
+      "Bash(ls -la .gitignore backend/.gitignore frontend/.gitignore)",
+      "mcp__Claude_in_Chrome__computer",
+      "mcp__Claude_in_Chrome__browser_batch"
+    ]
+  }
+}
