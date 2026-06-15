@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useTraceStore } from '../../store/traceStore';
-import { isSpecialObj, isPlainDict, collectionSummaryLabel } from '../../lib/collections';
+import { isSpecialObj, isPlainDict, isCounterObj, isDataVariable, collectionSummaryLabel } from '../../lib/collections';
 
 // ---------------------------------------------------------------------------
 // Flash animation (injected once into <head>)
@@ -36,6 +36,10 @@ function formatValue(v: unknown): { text: string; color: string } {
     if (v.startsWith('<')) return { text: v.slice(0, 50), color: '#6b6b6b' };
     const t = v.length > 48 ? v.slice(0, 48) + '...' : v;
     return { text: `"${t}"`, color: '#ce9178' };
+  }
+  if (isCounterObj(v)) {
+    const n = Object.keys(v.items).length;
+    return { text: `Counter(${n})`, color: '#dcdcaa' };
   }
   if (isSpecialObj(v)) {
     const items = (v.items as unknown[]) ?? [];
@@ -77,10 +81,12 @@ function buildRows(
   locals: Record<string, unknown>,
   prevLocals: Record<string, unknown>,
   changed: Set<string>,
+  currentFnName?: string,
 ): { active: RowData[]; removed: RowData[] } {
   const active: RowData[] = [];
 
   for (const [name, value] of Object.entries(locals)) {
+    if (!isDataVariable(name, value, currentFnName)) continue;
     const isChanged = changed.has(name);
     const summary    = collectionSummaryLabel(value);
 
@@ -111,6 +117,7 @@ function buildRows(
   // Out-of-scope rows (present in prevLocals, absent in current)
   const removed: RowData[] = [];
   for (const [name, value] of Object.entries(prevLocals)) {
+    if (!isDataVariable(name, value, currentFnName)) continue;
     if (!(name in locals)) {
       removed.push({
         id: `__gone__${name}`,
@@ -130,12 +137,15 @@ function buildRows(
 // Row component
 // ---------------------------------------------------------------------------
 
-// Badge color per collection-summary prefix: Array[N] / str(N) / set(N) / Dict{N} / tuple(N)
+// Badge color per collection-summary prefix: Array[N] / Matrix[RxC] / str(N) /
+// set(N) / Dict{N} / tuple(N) / deque(N) / Counter(N)
 function badgeColorFor(value: string): string {
-  if (value.startsWith('Array')) return '#9cdcfe';
+  if (value.startsWith('Array') || value.startsWith('Matrix')) return '#9cdcfe';
   if (value.startsWith('str')) return '#ce9178';
   if (value.startsWith('set')) return '#4ec9b0';
   if (value.startsWith('tuple')) return '#c586c0';
+  if (value.startsWith('deque')) return '#4ec9b0';
+  if (value.startsWith('Counter')) return '#dcdcaa';
   return '#dcdcaa'; // Dict{N}
 }
 
@@ -211,10 +221,12 @@ export default function VariablePanel() {
   const prevLocals = (steps[stepIdx - 1]?.locals ?? {}) as Record<string, unknown>;
   const { locals, changed_vars } = currStep;
   const changed = new Set(changed_vars);
+  const currentFnName = currStep.call_stack[0]?.name;
   const { active, removed } = buildRows(
     locals as Record<string, unknown>,
     prevLocals,
     changed,
+    currentFnName,
   );
 
   if (active.length === 0 && removed.length === 0) {

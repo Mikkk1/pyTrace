@@ -16,6 +16,8 @@ Design:
 import sys
 import copy
 import threading
+import types
+from collections import Counter, deque
 from typing import Any
 
 from services.sandbox import (
@@ -57,6 +59,10 @@ def _serialize(value: Any, depth: int = 0) -> Any:
             return value[:_MAX_STRING_LENGTH] + "…"
         return value
 
+    if isinstance(value, deque):
+        items = [_serialize(v, depth + 1) for v in list(value)[:_MAX_COLLECTION_LENGTH]]
+        return {"__type__": "deque", "items": items}
+
     if isinstance(value, (list, tuple)):
         items = [_serialize(v, depth + 1) for v in value[:_MAX_COLLECTION_LENGTH]]
         if len(value) > _MAX_COLLECTION_LENGTH:
@@ -64,6 +70,15 @@ def _serialize(value: Any, depth: int = 0) -> Any:
         if isinstance(value, tuple):
             return {"__type__": "tuple", "items": items}
         return items
+
+    # Counter is a dict subclass — check before the generic dict branch so it
+    # renders as char:count badges instead of plain key->value rows.
+    if isinstance(value, Counter):
+        truncated = dict(list(value.items())[:_MAX_COLLECTION_LENGTH])
+        return {
+            "__type__": "counter",
+            "items": {str(k): _serialize(v, depth + 1) for k, v in truncated.items()},
+        }
 
     if isinstance(value, dict):
         truncated = dict(list(value.items())[:_MAX_COLLECTION_LENGTH])
@@ -81,6 +96,38 @@ def _serialize(value: Any, depth: int = 0) -> Any:
     if len(rep) > _MAX_STRING_LENGTH:
         rep = rep[:_MAX_STRING_LENGTH] + "…"
     return rep
+
+
+# Types whose repr is not useful as a "value" — functions, methods, classes,
+# modules. These are filtered out of locals entirely (Phase 7 Bug 1) so the
+# COLLECTIONS/VARIABLES panels never show e.g. `characterReplacement` as a
+# fake `str(49)` entry.
+_NON_DATA_TYPE_NAMES = frozenset({
+    "function",
+    "method",
+    "builtin_function_or_method",
+    "type",
+    "module",
+})
+
+
+def _is_data_variable(name: str, value: Any, current_fn_name: str) -> bool:
+    """Return False for variables that aren't user "data" (Phase 7 Bug 1).
+
+    Excludes: dunder names, the traced function's own name, callables
+    (functions/methods/builtins/classes), and imported modules.
+    """
+    if name.startswith("__") and name.endswith("__"):
+        return False
+    if name == current_fn_name:
+        return False
+    if isinstance(value, types.ModuleType):
+        return False
+    if callable(value):
+        return False
+    if type(value).__name__ in _NON_DATA_TYPE_NAMES:
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -219,7 +266,7 @@ class PyTracer:
         serialized_locals: dict[str, Any] = {
             k: _serialize(v)
             for k, v in raw_locals.items()
-            if not k.startswith("__")
+            if _is_data_variable(k, v, frame.f_code.co_name)
         }
 
         changed_vars = [

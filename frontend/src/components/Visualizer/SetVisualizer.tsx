@@ -1,10 +1,12 @@
 // PyTrace - Set visualizer: wrapped pill badges (sets have no index/order)
 
 import type { FC } from 'react';
+import CollectionLabel from './CollectionLabel';
 
 interface Props {
   varName: string;
   items: unknown[];
+  badge?: string | null;
 }
 
 function pillLabel(v: unknown): string {
@@ -15,10 +17,9 @@ function pillLabel(v: unknown): string {
   return String(v);
 }
 
-const SetVisualizer: FC<Props> = ({ varName, items }) => (
+const SetVisualizer: FC<Props> = ({ varName, items, badge }) => (
   <div>
-    <span className="text-[#9cdcfe] text-xs font-mono">{varName}</span>
-    <span className="text-[#6b6b6b] text-xs font-mono"> =</span>
+    <CollectionLabel varName={varName} badge={badge} />
     <div className="mt-1 flex flex-wrap items-center gap-1">
       <span className="text-[#6b6b6b] text-xs font-mono">{'{'}</span>
       {items.map((item, idx) => (

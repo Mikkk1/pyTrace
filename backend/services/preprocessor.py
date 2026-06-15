@@ -32,8 +32,10 @@ _SKIP_METHODS = frozenset({
 
 def _unwrap_class(code: str) -> tuple[str, bool]:
     """
-    If ALL top-level statements are class definitions (typical LeetCode
-    Solution wrapper), extract non-dunder methods as top-level functions.
+    If every top-level statement is either a class definition or an import
+    (typical LeetCode Solution submission, often preceded by
+    `from typing import ...` / `from collections import ...`), extract
+    non-dunder methods as top-level functions, keeping the leading imports.
     Returns (new_code, was_unwrapped).
     """
     try:
@@ -43,11 +45,15 @@ def _unwrap_class(code: str) -> tuple[str, bool]:
 
     top = tree.body
     class_nodes = [n for n in top if isinstance(n, ast.ClassDef)]
-    if not class_nodes or len(class_nodes) != len(top):
+    import_nodes = [n for n in top if isinstance(n, (ast.Import, ast.ImportFrom))]
+    if not class_nodes or len(class_nodes) + len(import_nodes) != len(top):
         return code, False
 
     lines = code.split('\n')
     output: list[str] = []
+
+    for imp in import_nodes:
+        output.extend(lines[imp.lineno - 1: imp.end_lineno])
 
     for cls in class_nodes:
         for item in cls.body:

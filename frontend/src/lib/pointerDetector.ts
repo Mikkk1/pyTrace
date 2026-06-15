@@ -2,8 +2,11 @@
 // Spec: ARCHITECTURE.md § Pointer Auto-Detection Logic
 
 // Match case-insensitively so L/R (LeetCode style) and l/r both work.
+// NOTE: 'k' is intentionally excluded — it's almost always a constraint value
+// (e.g. "replace at most k characters"), not an index. Only names below are
+// ever treated as pointers, regardless of whether their value looks index-like.
 const POINTER_NAMES_LOWER = new Set([
-  'i', 'j', 'k', 'l', 'r',
+  'i', 'j', 'l', 'r',
   'left', 'right',
   'lo', 'hi',
   'start', 'end',

@@ -14,7 +14,7 @@ import Footer from './components/Layout/Footer';
 import SidebarSection from './components/Layout/SidebarSection';
 import { useTraceStore, type SectionId } from './store/traceStore';
 import { useTracer } from './hooks/useTracer';
-import { isCollectionValue } from './lib/collections';
+import { isCollectionValue, filterDataLocals } from './lib/collections';
 import { getSnippet, type AnalyzeResult } from './lib/api';
 
 const DEFAULT_CODE = `def two_sum(nums, target):
@@ -157,8 +157,11 @@ export default function App() {
     sectionResize.current = { a, b, lastY: e.clientY, containerH };
   };
 
-  // Section header counts
-  const locals = (currStep?.locals ?? {}) as Record<string, unknown>;
+  // Section header counts (non-data variables — functions, dunders, modules —
+  // are excluded from both COLLECTIONS and VARIABLES, Phase 7 Bug 1).
+  const rawLocals = (currStep?.locals ?? {}) as Record<string, unknown>;
+  const currentFnName = currStep?.call_stack[0]?.name;
+  const locals = filterDataLocals(rawLocals, currentFnName);
   const collectionsCount = Object.values(locals).filter(isCollectionValue).length;
   const variableCount = Object.keys(locals).length - collectionsCount;
 

@@ -86,3 +86,23 @@
 **Fix:** Removed `stepKey` from `VarRow`'s props/type and from both call sites; the local `stepKey` used for React `key` generation in `VariablePanel` itself was kept.
 **File:** frontend/src/components/Visualizer/VariablePanel.tsx
 **Prevention:** Run `npx tsc --noEmit -p tsconfig.app.json` after frontend changes, not just `npm run build`, since vite's esbuild transform skips type-only errors.
+
+### [2026-06-15] LeetCode submissions with leading imports fail with "NameError: __build_class__ not found"
+**Error:** Any real LeetCode submission of the form `from collections import ...` / `import heapq` followed by `class Solution: ...` failed to trace with `NameError: __build_class__ not found`, even though a bare `class Solution:` with no imports worked fine.
+**Root cause:** `_unwrap_class()` in `backend/services/preprocessor.py` only unwrapped the class into top-level functions when EVERY top-level AST node was a `ClassDef` (`len(class_nodes) != len(top)` check). Real submissions almost always have `from typing import ...` / `from collections import ...` as top-level `Import`/`ImportFrom` nodes before the class, so the check failed, the class statement was executed as-is, and `sandbox.py`'s restricted `__builtins__` (which strips all `__dunder__` names, including `__build_class__`) made the `class` statement itself raise `NameError`.
+**Fix:** `_unwrap_class()` now also collects top-level `Import`/`ImportFrom` nodes, requires `len(class_nodes) + len(import_nodes) == len(top)`, and prepends the import source lines to the unwrapped output so `Counter`/`deque`/`heapq` etc. remain available to the extracted functions.
+**File:** backend/services/preprocessor.py
+**Discovered:** PHASE-7 Section 1 browser test (characterReplacement with `from collections import Counter, deque` + `import heapq` + `class Solution:`).
+
+### [2026-06-15] Heap arrays showed confusing ^L/^R/^i/^j pointer labels alongside the "top" badge
+**Error:** `buildPointerIndices()` highlights any local named i/j/L/R/etc. whose integer value is a valid index into ANY array of compatible length — including a `heapq` heap array. When a sliding-window pointer (e.g. `L`) happened to be a valid index into `heap` too, the heap cell showed both the "top" badge AND a "^L" pointer label, which is misleading since heap internal ordering has no relationship to those pointers.
+**Fix:** In `CollectionsPanel.tsx`, heap-detected lists (`isHeapName(name) || badge === 'heap'`) now pass `pointerIndices={}` to `ArrayVisualizer` instead of `buildPointerIndices(...)`, so only the heap[0] "top" badge is shown.
+**File:** frontend/src/components/Visualizer/CollectionsPanel.tsx
+**Discovered:** PHASE-7 Section 1 browser test (characterReplacement, step 51/71 — `heap=[-3,-2,-1,-1,-2]` with `L=2` showed "^L" on `heap[2]`).
+**Known limitation (not fixed, pre-existing/spec'd):** The same heuristic still applies `^i`/`^j` labels to unrelated 1D arrays (e.g. a string `s`) whenever `i`/`j` happen to be valid indices into them — this is the documented ARCHITECTURE.md pointer-detection behavior and is out of scope for Section 1.
+
+### [2026-06-15] Local browser testing hit production backend (pytrace-xh08.onrender.com), not localhost:8000
+**Error:** `frontend/.env` has `VITE_API_URL=https://pytrace-xh08.onrender.com` (the deployed Render backend), so running `npm run dev` locally sent all `/trace` requests to production — none of the Section 1 backend changes (Counter/deque serialization, isDataVariable filter, preprocessor fix) were reachable for browser testing against the local backend.
+**Fix:** Added `frontend/.env.local` (gitignored, overrides `.env`) with `VITE_API_URL=http://localhost:8000`, then restarted the Vite dev server (env files are only read at server start).
+**File:** frontend/.env.local (new, not committed)
+**Prevention:** When browser-testing local backend changes, confirm `read_network_requests` shows requests going to `localhost:8000`, not the Render URL.
