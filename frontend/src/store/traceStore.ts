@@ -3,6 +3,24 @@
 import { create } from 'zustand';
 import type { TraceResult, TraceStep } from '../types/trace';
 
+export type AppMode = 'trace' | 'live';
+
+export type SectionId = 'arrays' | 'variables' | 'callStack' | 'complexity';
+
+const DEFAULT_SECTION_SIZES: Record<SectionId, number> = {
+  arrays: 0.30,
+  variables: 0.35,
+  callStack: 0.20,
+  complexity: 0.15,
+};
+
+const DEFAULT_SECTION_COLLAPSED: Record<SectionId, boolean> = {
+  arrays: false,
+  variables: false,
+  callStack: false,
+  complexity: true,
+};
+
 interface TraceState {
   // Raw trace data
   result: TraceResult | null;
@@ -21,6 +39,14 @@ interface TraceState {
   // Code in the editor
   code: string;
 
+  // Live REPL mode
+  mode: AppMode;
+  liveError: string | null;
+
+  // Sidebar section layout (fractions of expanded sidebar height, persisted across steps)
+  sectionSizes: Record<SectionId, number>;
+  sectionCollapsed: Record<SectionId, boolean>;
+
   // Actions
   setResult: (result: TraceResult) => void;
   setCurrentStepIndex: (index: number) => void;
@@ -28,6 +54,13 @@ interface TraceState {
   setError: (error: string | null) => void;
   setCode: (code: string) => void;
   reset: () => void;
+
+  setMode: (mode: AppMode) => void;
+  setLiveError: (error: string | null) => void;
+  applyLiveResult: (result: TraceResult) => void;
+
+  toggleSectionCollapsed: (id: SectionId) => void;
+  adjustSectionSizes: (a: SectionId, b: SectionId, deltaFrac: number, minFrac: number) => void;
 }
 
 export const useTraceStore = create<TraceState>((set, get) => ({
@@ -40,6 +73,12 @@ export const useTraceStore = create<TraceState>((set, get) => ({
   error: null,
   notes: [],
   code: '',
+
+  mode: 'trace',
+  liveError: null,
+
+  sectionSizes: { ...DEFAULT_SECTION_SIZES },
+  sectionCollapsed: { ...DEFAULT_SECTION_COLLAPSED },
 
   setResult: (result) =>
     set({
@@ -73,5 +112,52 @@ export const useTraceStore = create<TraceState>((set, get) => ({
       currentStep: null,
       error: null,
       notes: [],
+    }),
+
+  setMode: (mode) => set({ mode }),
+
+  setLiveError: (error) => set({ liveError: error }),
+
+  applyLiveResult: (result) => {
+    if (result.error) {
+      // Keep the existing visualization on screen; surface the error separately
+      // without touching steps/currentStep.
+      set({ liveError: result.error, notes: result.notes ?? [] });
+      return;
+    }
+    const lastIndex = Math.max(0, result.steps.length - 1);
+    set({
+      result,
+      steps: result.steps,
+      totalSteps: result.total_steps,
+      error: null,
+      liveError: null,
+      notes: result.notes ?? [],
+      currentStepIndex: lastIndex,
+      currentStep: result.steps[lastIndex] ?? null,
+    });
+  },
+
+  toggleSectionCollapsed: (id) =>
+    set((state) => ({
+      sectionCollapsed: { ...state.sectionCollapsed, [id]: !state.sectionCollapsed[id] },
+    })),
+
+  adjustSectionSizes: (a, b, deltaFrac, minFrac) =>
+    set((state) => {
+      const sizes = state.sectionSizes;
+      let newA = sizes[a] + deltaFrac;
+      let newB = sizes[b] - deltaFrac;
+      if (newA < minFrac) {
+        const diff = minFrac - newA;
+        newA = minFrac;
+        newB -= diff;
+      }
+      if (newB < minFrac) {
+        const diff = minFrac - newB;
+        newB = minFrac;
+        newA -= diff;
+      }
+      return { sectionSizes: { ...sizes, [a]: newA, [b]: newB } };
     }),
 }));

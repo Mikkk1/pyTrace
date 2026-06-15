@@ -5,7 +5,24 @@
       "Bash(ls -la backend/.env* frontend/.env*)",
       "Bash(ls -la .gitignore backend/.gitignore frontend/.gitignore)",
       "mcp__Claude_in_Chrome__computer",
-      "mcp__Claude_in_Chrome__browser_batch"
+      "mcp__Claude_in_Chrome__browser_batch",
+      "Bash(npx tsc *)",
+      "Bash(python -c \"import fastapi, slowapi, openai\")",
+      "Bash(pip install *)",
+      "Bash(python -m uvicorn main:app --port 8000)",
+      "Bash(npm run *)",
+      "Bash(curl -s http://localhost:8000/docs -o /dev/null -w \"%{http_code}\\\\n\")",
+      "Bash(sleep 4 && cat /c/Users/sarim/AppData/Local/Temp/claude/C--Users-sarim-Downloads-Code-Projects-code-visualizer/98fc502b-aaec-49eb-a155-1fe5580ac5bd/tasks/bhzr8jk9i.output)",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__read_page",
+      "mcp__Claude_in_Chrome__find",
+      "mcp__Claude_in_Chrome__read_console_messages",
+      "mcp__Claude_in_Chrome__get_page_text",
+      "mcp__Claude_in_Chrome__resize_window",
+      "Read(//tmp/**)",
+      "Bash(curl -s -m 10 -X OPTIONS http://localhost:8000/trace -H \"Origin: http://localhost:5174\" -H \"Access-Control-Request-Method: POST\" -H \"Access-Control-Request-Headers: Content-Type\" -i -o /tmp/preflight.txt -w \"HTTP %{http_code}\\\\n\")",
+      "Bash(netstat -ano)",
+      "mcp__Claude_in_Chrome__javascript_tool"
     ]
   }
 }

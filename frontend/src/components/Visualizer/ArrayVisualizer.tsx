@@ -1,6 +1,6 @@
 // PyTrace - Array visualizer (VS Code colors, supports nested arrays)
 
-import type { FC } from 'react';
+import { useState, type FC } from 'react';
 
 interface Props {
   varName: string;
@@ -8,7 +8,8 @@ interface Props {
   pointerIndices: Record<string, number>;
 }
 
-const MAX_DISPLAY = 20;
+const EXPAND_THRESHOLD = 12;
+const COLLAPSED_DISPLAY = 10;
 const MAX_NESTED_ROWS = 10;
 const PALETTE = ['#dcdcaa', '#9cdcfe', '#4ec9b0', '#ce9178'];
 
@@ -35,6 +36,8 @@ function FlatRow({
   pointerIndices: Record<string, number>;
   ptrNames: string[];
 }) {
+  const [expanded, setExpanded] = useState(false);
+
   const colorFor = (name: string) => PALETTE[ptrNames.indexOf(name) % PALETTE.length];
 
   const indexToPointers = new Map<number, string[]>();
@@ -44,11 +47,12 @@ function FlatRow({
     indexToPointers.set(idx, bucket);
   }
 
-  const display = items.slice(0, MAX_DISPLAY);
+  const shouldCollapse = items.length > EXPAND_THRESHOLD && !expanded;
+  const display = shouldCollapse ? items.slice(0, COLLAPSED_DISPLAY) : items;
   const overflow = items.length - display.length;
 
   return (
-    <div className="flex gap-0.5 items-start min-w-max">
+    <div className="flex gap-0.5 items-start min-w-max flex-wrap">
       {display.map((item, idx) => {
         const ptrs = indexToPointers.get(idx) ?? [];
         const primaryColor = ptrs.length > 0 ? colorFor(ptrs[0]) : undefined;
@@ -72,7 +76,20 @@ function FlatRow({
         );
       })}
       {overflow > 0 && (
-        <div className="self-center text-[#6b6b6b] text-[11px] ml-1">+{overflow}</div>
+        <button
+          onClick={() => setExpanded(true)}
+          className="self-center text-[#9cdcfe] text-[11px] ml-1 px-1.5 py-0.5 rounded border border-[#3c3c3c] hover:bg-[#2d2d2d] transition-colors"
+        >
+          +{overflow} more
+        </button>
+      )}
+      {expanded && items.length > EXPAND_THRESHOLD && (
+        <button
+          onClick={() => setExpanded(false)}
+          className="self-center text-[#6b6b6b] text-[11px] ml-1 px-1.5 py-0.5 rounded border border-[#3c3c3c] hover:bg-[#2d2d2d] transition-colors"
+        >
+          Show less
+        </button>
       )}
     </div>
   );

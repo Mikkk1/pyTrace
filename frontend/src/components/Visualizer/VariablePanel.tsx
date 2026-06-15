@@ -88,7 +88,6 @@ interface RowData {
   isGroupHeader: boolean;
 }
 
-const MAX_ARRAY = 30;
 const MAX_DICT  = 20;
 
 function buildRows(
@@ -103,7 +102,8 @@ function buildRows(
     const prevValue  = prevLocals[name];
 
     if (Array.isArray(value) && value.length > 0) {
-      // Group header row (the array name itself)
+      // Non-expandable summary row only — the ArrayVisualizer grid (ARRAYS
+      // section) is the primary display for array contents.
       active.push({
         id: name,
         label: name,
@@ -112,24 +112,6 @@ function buildRows(
         isOutOfScope: false,
         isGroupHeader: true,
       });
-      const prevArr = Array.isArray(prevValue) ? prevValue : null;
-      const slice   = value.slice(0, MAX_ARRAY);
-      for (let i = 0; i < slice.length; i++) {
-        const item     = slice[i];
-        const prevItem = prevArr?.[i];
-        const idxChanged = isChanged && item !== prevItem;
-        active.push({
-          id: `${name}[${i}]`,
-          label: `${name}[${i}]`,
-          value: item,
-          isChanged: idxChanged,
-          isOutOfScope: false,
-          isGroupHeader: false,
-        });
-      }
-      if (value.length > MAX_ARRAY) {
-        active.push({ id: `${name}[+]`, label: `  +${value.length - MAX_ARRAY} more`, value: '', isChanged: false, isOutOfScope: false, isGroupHeader: false });
-      }
     } else if (isPlainDict(value)) {
       const entries = Object.entries(value);
       active.push({
@@ -192,7 +174,7 @@ function buildRows(
 // Row component
 // ---------------------------------------------------------------------------
 
-function VarRow({ row, stepKey }: { row: RowData; stepKey: string }) {
+function VarRow({ row }: { row: RowData }) {
   if (row.isGroupHeader) {
     // Array/dict header: just the name + type badge, no value column
     const badgeColor = String(row.value).startsWith('Array') ? '#9cdcfe' : '#dcdcaa';
@@ -286,14 +268,13 @@ export default function VariablePanel() {
         <VarRow
           key={row.isChanged ? `${row.id}-${stepKey}` : row.id}
           row={row}
-          stepKey={stepKey}
         />
       ))}
       {removed.length > 0 && (
         <>
           <div className="my-1 mx-2 border-t border-[#2d2d2d]" />
           {removed.map((row) => (
-            <VarRow key={row.id} row={row} stepKey={stepKey} />
+            <VarRow key={row.id} row={row} />
           ))}
         </>
       )}

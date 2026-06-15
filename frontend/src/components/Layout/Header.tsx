@@ -1,6 +1,6 @@
 // PyTrace - Header with VS Code color scheme
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Github, Linkedin } from 'lucide-react';
 import { useTraceStore } from '../../store/traceStore';
 import { postAnalyze, createSnippet, type AnalyzeResult } from '../../lib/api';
@@ -17,8 +17,23 @@ export default function Header({ onAnalyseResult, analyseLoading, setAnalyseLoad
   const totalSteps  = useTraceStore((s) => s.totalSteps);
   const stepIdx     = useTraceStore((s) => s.currentStepIndex);
   const currentStep = useTraceStore((s) => s.currentStep);
+  const mode        = useTraceStore((s) => s.mode);
+  const setMode     = useTraceStore((s) => s.setMode);
+  const isLoading   = useTraceStore((s) => s.isLoading);
 
   const [shareState, setShareState] = useState<'idle' | 'copying' | 'copied' | 'error'>('idle');
+
+  // Ctrl+Shift+L toggles Trace/Live mode
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        setMode(mode === 'live' ? 'trace' : 'live');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [mode, setMode]);
 
   const handleAnalyse = useCallback(async () => {
     if (!code.trim() || analyseLoading) return;
@@ -72,17 +87,50 @@ export default function Header({ onAnalyseResult, analyseLoading, setAnalyseLoad
             <span className="text-[#9cdcfe]">{currentStep.event}</span>
           </span>
         )}
-        {totalSteps > 0 && (
-          <span>
-            step <span className="text-[#cccccc]">{stepIdx + 1}</span>
-            <span className="text-[#3c3c3c]">/</span>
-            <span className="text-[#cccccc]">{totalSteps}</span>
+        {mode === 'live' ? (
+          <span className="flex items-center gap-1.5 font-semibold">
+            {isLoading && <span className="w-1.5 h-1.5 rounded-full bg-[#4ec9b0] animate-pulse" />}
+            <span className="text-[#4ec9b0]">Live</span>
           </span>
+        ) : (
+          totalSteps > 0 && (
+            <span>
+              step <span className="text-[#cccccc]">{stepIdx + 1}</span>
+              <span className="text-[#3c3c3c]">/</span>
+              <span className="text-[#cccccc]">{totalSteps}</span>
+            </span>
+          )
         )}
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-1.5">
+        {/* Trace / Live mode toggle */}
+        <div
+          className="flex items-center rounded-full overflow-hidden border border-[#454545] text-[10px] font-semibold mr-1"
+          title="Toggle Trace/Live mode (Ctrl+Shift+L)"
+        >
+          <button
+            onClick={() => setMode('trace')}
+            className={`px-2.5 py-1 transition-colors ${
+              mode === 'trace' ? 'bg-[#007acc] text-white' : 'bg-[#2d2d2d] text-[#858585] hover:text-[#cccccc]'
+            }`}
+          >
+            Trace
+          </button>
+          <button
+            onClick={() => setMode('live')}
+            className={`px-2.5 py-1 transition-colors flex items-center gap-1 ${
+              mode === 'live' ? 'bg-[#16825d] text-white' : 'bg-[#2d2d2d] text-[#858585] hover:text-[#cccccc]'
+            }`}
+          >
+            {mode === 'live' && isLoading && (
+              <span className="w-1.5 h-1.5 rounded-full bg-[#4ec9b0] animate-pulse" />
+            )}
+            Live
+          </button>
+        </div>
+
         <button
           onClick={handleAnalyse}
           disabled={analyseLoading || !code.trim()}

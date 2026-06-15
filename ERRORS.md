@@ -80,3 +80,9 @@
 **Error:** In this environment, the Bash tool's default working directory is `frontend/`, while PowerShell's default is also `frontend/` — running `cd frontend && ...` from either fails with "No such file or directory" / "Cannot find path" since `frontend/frontend` doesn't exist.
 **Fix:** Run frontend commands (npm install, npm run build/dev) without a leading `cd frontend`. For backend commands, use an explicit absolute or `cd ../backend` style path.
 **Note:** Verify cwd assumptions before chaining `cd` in either shell for this project.
+
+### [2026-06-15] VariablePanel.tsx VarRow had unused `stepKey` prop (TS6133)
+**Error:** `npm run build` (vite/esbuild) didn't catch it, but `tsc --noEmit` failed with "'stepKey' is declared but its value is never read" — a pre-existing unused prop passed to `VarRow` from Phase 5's rewrite.
+**Fix:** Removed `stepKey` from `VarRow`'s props/type and from both call sites; the local `stepKey` used for React `key` generation in `VariablePanel` itself was kept.
+**File:** frontend/src/components/Visualizer/VariablePanel.tsx
+**Prevention:** Run `npx tsc --noEmit -p tsconfig.app.json` after frontend changes, not just `npm run build`, since vite's esbuild transform skips type-only errors.

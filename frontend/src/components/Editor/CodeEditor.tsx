@@ -38,6 +38,7 @@ export default function CodeEditor() {
   const code = useTraceStore((s) => s.code);
   const setCode = useTraceStore((s) => s.setCode);
   const currentStep = useTraceStore((s) => s.currentStep);
+  const mode = useTraceStore((s) => s.mode);
 
   // Apply / remove line highlight whenever the current step changes
   useEffect(() => {
@@ -74,26 +75,28 @@ export default function CodeEditor() {
     monacoRef.current = monaco;
 
     // VS Code Dark+ color token rules
+    const tokenRules: Monaco.editor.ITokenThemeRule[] = [
+      { token: 'keyword',           foreground: '569cd6' },
+      { token: 'keyword.control',   foreground: 'c586c0' },
+      { token: 'string',            foreground: 'ce9178' },
+      { token: 'string.escape',     foreground: 'd7ba7d' },
+      { token: 'number',            foreground: 'b5cea8' },
+      { token: 'comment',           foreground: '6a9955', fontStyle: 'italic' },
+      { token: 'type',              foreground: '4ec9b0' },
+      { token: 'identifier',        foreground: '9cdcfe' },
+      { token: 'delimiter',         foreground: 'd4d4d4' },
+      { token: 'operator',          foreground: 'd4d4d4' },
+      { token: 'function',          foreground: 'dcdcaa' },
+      { token: 'variable',          foreground: '9cdcfe' },
+      { token: 'variable.name',     foreground: '9cdcfe' },
+      { token: 'constant.language', foreground: '569cd6' },
+      { token: 'support.function',  foreground: 'dcdcaa' },
+    ];
+
     monaco.editor.defineTheme('pytrace-dark', {
       base: 'vs-dark',
       inherit: true,
-      rules: [
-        { token: 'keyword',           foreground: '569cd6' },
-        { token: 'keyword.control',   foreground: 'c586c0' },
-        { token: 'string',            foreground: 'ce9178' },
-        { token: 'string.escape',     foreground: 'd7ba7d' },
-        { token: 'number',            foreground: 'b5cea8' },
-        { token: 'comment',           foreground: '6a9955', fontStyle: 'italic' },
-        { token: 'type',              foreground: '4ec9b0' },
-        { token: 'identifier',        foreground: '9cdcfe' },
-        { token: 'delimiter',         foreground: 'd4d4d4' },
-        { token: 'operator',          foreground: 'd4d4d4' },
-        { token: 'function',          foreground: 'dcdcaa' },
-        { token: 'variable',          foreground: '9cdcfe' },
-        { token: 'variable.name',     foreground: '9cdcfe' },
-        { token: 'constant.language', foreground: '569cd6' },
-        { token: 'support.function',  foreground: 'dcdcaa' },
-      ],
+      rules: tokenRules,
       colors: {
         'editor.background':              '#1e1e1e',
         'editor.foreground':              '#d4d4d4',
@@ -110,10 +113,40 @@ export default function CodeEditor() {
         'editorBracketMatch.border':      '#888888',
       },
     });
-    monaco.editor.setTheme('pytrace-dark');
+
+    // Live Mode variant — subtle green tint so the editor reads as a live scratchpad
+    monaco.editor.defineTheme('pytrace-dark-live', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: tokenRules,
+      colors: {
+        'editor.background':              '#1e2a1e',
+        'editor.foreground':              '#d4d4d4',
+        'editor.lineHighlightBackground': '#2a3a2a',
+        'editor.selectionBackground':     '#264f78',
+        'editorLineNumber.foreground':    '#858585',
+        'editorLineNumber.activeForeground': '#c6c6c6',
+        'editorCursor.foreground':        '#aeafad',
+        'editor.findMatchBackground':     '#515c6a',
+        'editorGutter.background':        '#1e2a1e',
+        'editorWidget.background':        '#252526',
+        'editorIndentGuide.background1':  '#404040',
+        'editorBracketMatch.background':  '#0d3a58',
+        'editorBracketMatch.border':      '#888888',
+      },
+    });
+
+    monaco.editor.setTheme(mode === 'live' ? 'pytrace-dark-live' : 'pytrace-dark');
 
     ensureHighlightStyles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Switch theme when Trace/Live mode changes
+  useEffect(() => {
+    if (!monacoRef.current) return;
+    monacoRef.current.editor.setTheme(mode === 'live' ? 'pytrace-dark-live' : 'pytrace-dark');
+  }, [mode]);
 
   return (
     <MonacoEditor
