@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useTraceStore } from '../../store/traceStore';
+import { isSpecialObj, isPlainDict, collectionSummaryLabel } from '../../lib/collections';
 
 // ---------------------------------------------------------------------------
 // Flash animation (injected once into <head>)
@@ -21,22 +22,6 @@ function ensureFlashStyle() {
     .pytrace-flash { animation: pytrace-flash 0.75s ease-out; }
   `;
   document.head.appendChild(style);
-}
-
-// ---------------------------------------------------------------------------
-// Type helpers
-// ---------------------------------------------------------------------------
-
-function isSpecialObj(v: unknown): v is Record<string, unknown> {
-  return (
-    typeof v === 'object' && v !== null &&
-    !Array.isArray(v) &&
-    '__type__' in (v as Record<string, unknown>)
-  );
-}
-
-function isPlainDict(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v) && !isSpecialObj(v);
 }
 
 // ---------------------------------------------------------------------------
@@ -88,8 +73,6 @@ interface RowData {
   isGroupHeader: boolean;
 }
 
-const MAX_DICT  = 20;
-
 function buildRows(
   locals: Record<string, unknown>,
   prevLocals: Record<string, unknown>,
@@ -98,49 +81,22 @@ function buildRows(
   const active: RowData[] = [];
 
   for (const [name, value] of Object.entries(locals)) {
-    const isChanged  = changed.has(name);
-    const prevValue  = prevLocals[name];
+    const isChanged = changed.has(name);
+    const summary    = collectionSummaryLabel(value);
 
-    if (Array.isArray(value) && value.length > 0) {
-      // Non-expandable summary row only — the ArrayVisualizer grid (ARRAYS
-      // section) is the primary display for array contents.
+    if (summary !== null) {
+      // Non-expandable summary row only — the COLLECTIONS section (str/list/
+      // set/dict/tuple cell grids, pills, key-value rows) is the primary display.
       active.push({
         id: name,
         label: name,
-        value: `Array[${value.length}]`,
+        value: summary,
         isChanged,
         isOutOfScope: false,
         isGroupHeader: true,
       });
-    } else if (isPlainDict(value)) {
-      const entries = Object.entries(value);
-      active.push({
-        id: name,
-        label: name,
-        value: `Dict{${entries.length}}`,
-        isChanged,
-        isOutOfScope: false,
-        isGroupHeader: true,
-      });
-      const prevDict = isPlainDict(prevValue) ? prevValue : null;
-      const slice    = entries.slice(0, MAX_DICT);
-      for (const [k, v] of slice) {
-        const prevV       = prevDict?.[k];
-        const entryChanged = isChanged && v !== prevV;
-        active.push({
-          id: `${name}["${k}"]`,
-          label: `${name}["${k}"]`,
-          value: v,
-          isChanged: entryChanged,
-          isOutOfScope: false,
-          isGroupHeader: false,
-        });
-      }
-      if (entries.length > MAX_DICT) {
-        active.push({ id: `${name}{+}`, label: `  +${entries.length - MAX_DICT} more`, value: '', isChanged: false, isOutOfScope: false, isGroupHeader: false });
-      }
     } else {
-      // Primitive, set, special object, empty array/dict
+      // Primitive, frozenset, empty str/array/dict/set/tuple
       active.push({
         id: name,
         label: name,
@@ -174,10 +130,19 @@ function buildRows(
 // Row component
 // ---------------------------------------------------------------------------
 
+// Badge color per collection-summary prefix: Array[N] / str(N) / set(N) / Dict{N} / tuple(N)
+function badgeColorFor(value: string): string {
+  if (value.startsWith('Array')) return '#9cdcfe';
+  if (value.startsWith('str')) return '#ce9178';
+  if (value.startsWith('set')) return '#4ec9b0';
+  if (value.startsWith('tuple')) return '#c586c0';
+  return '#dcdcaa'; // Dict{N}
+}
+
 function VarRow({ row }: { row: RowData }) {
   if (row.isGroupHeader) {
-    // Array/dict header: just the name + type badge, no value column
-    const badgeColor = String(row.value).startsWith('Array') ? '#9cdcfe' : '#dcdcaa';
+    // Collection summary header: just the name + type badge, no value column
+    const badgeColor = badgeColorFor(String(row.value));
     return (
       <div className={`flex items-center gap-1.5 px-2 pt-2 pb-0.5 ${row.isChanged ? 'pytrace-flash rounded' : ''}`}>
         <span className={`text-xs font-mono font-semibold ${row.isChanged ? 'text-[#dcdcaa]' : 'text-[#9cdcfe]'}`}>

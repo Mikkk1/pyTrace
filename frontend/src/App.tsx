@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import CodeEditor from './components/Editor/CodeEditor';
-import ArrayPanel from './components/Visualizer/ArrayPanel';
+import CollectionsPanel from './components/Visualizer/CollectionsPanel';
 import VariablePanel from './components/Visualizer/VariablePanel';
 import CallStack from './components/Visualizer/CallStack';
 import ComplexityPanel from './components/Visualizer/ComplexityPanel';
@@ -14,6 +14,7 @@ import Footer from './components/Layout/Footer';
 import SidebarSection from './components/Layout/SidebarSection';
 import { useTraceStore, type SectionId } from './store/traceStore';
 import { useTracer } from './hooks/useTracer';
+import { isCollectionValue } from './lib/collections';
 import { getSnippet, type AnalyzeResult } from './lib/api';
 
 const DEFAULT_CODE = `def two_sum(nums, target):
@@ -158,8 +159,8 @@ export default function App() {
 
   // Section header counts
   const locals = (currStep?.locals ?? {}) as Record<string, unknown>;
-  const arrayCount = Object.values(locals).filter((v) => Array.isArray(v) && v.length > 0).length;
-  const variableCount = Object.keys(locals).length - arrayCount;
+  const collectionsCount = Object.values(locals).filter(isCollectionValue).length;
+  const variableCount = Object.keys(locals).length - collectionsCount;
 
   const displayError = mode === 'live' ? (inputsError ?? liveError) : (inputsError ?? error);
 
@@ -196,12 +197,12 @@ export default function App() {
           <div ref={sectionsRef} className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <SidebarSection
               id="arrays"
-              title="ARRAYS"
-              count={arrayCount}
+              title="COLLECTIONS"
+              count={collectionsCount}
               showHandle={!sectionCollapsed.arrays && nextExpandedSection('arrays') !== null}
               onHandleMouseDown={startSectionResize('arrays', nextExpandedSection('arrays'))}
             >
-              <ArrayPanel />
+              <CollectionsPanel />
             </SidebarSection>
 
             <SidebarSection
