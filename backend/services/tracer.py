@@ -27,7 +27,7 @@ from services.sandbox import (
     build_restricted_globals,
     validate_code,
 )
-from models.schemas import StackFrame, TraceStep
+from models.schemas import RecursionNode, StackFrame, TraceStep
 
 
 # ---------------------------------------------------------------------------
@@ -36,6 +36,11 @@ from models.schemas import StackFrame, TraceStep
 
 _MAX_COLLECTION_LENGTH = 200
 _MAX_STRING_LENGTH = 500
+
+# Cap on recursion-tree nodes built during tracing, to keep the response
+# payload bounded for deeply recursive code (e.g. unmemoized fib(20)).
+# The frontend further caps the *displayed* tree at 30 nodes / depth 6.
+_MAX_RECURSION_NODES = 200
 
 
 def _serialize(value: Any, depth: int = 0) -> Any:
@@ -157,12 +162,19 @@ class PyTracer:
         # _user_stack[0] is the OUTERMOST frame (<module>),
         # _user_stack[-1] is the CURRENT innermost frame.
         self._user_stack: list[tuple[str, int]] = []  # (name, line)
+        # Recursion/call tree, built incrementally from call/return events.
+        # _recursion_stack mirrors _user_stack but holds RecursionNode refs
+        # (or None once _MAX_RECURSION_NODES is exceeded, as a placeholder
+        # so push/pop stay balanced).
+        self._recursion_root: RecursionNode | None = None
+        self._recursion_stack: list[RecursionNode | None] = []
+        self._recursion_node_count = 0
 
     # ------------------------------------------------------------------
     # Public
     # ------------------------------------------------------------------
 
-    def run(self, code: str, inputs: dict[str, Any]) -> tuple[list[TraceStep], str | None]:
+    def run(self, code: str, inputs: dict[str, Any]) -> tuple[list[TraceStep], str | None, RecursionNode | None]:
         """Execute *code* under sys.settrace() and return captured steps.
 
         Args:
@@ -170,7 +182,7 @@ class PyTracer:
             inputs: Variables to inject into the execution namespace.
 
         Returns:
-            Tuple of (steps, error_string_or_None).
+            Tuple of (steps, error_string_or_None, recursion_tree_or_None).
         """
         validate_code(code)
         restricted_globals = build_restricted_globals(inputs)
@@ -180,6 +192,9 @@ class PyTracer:
         self._timed_out = False
         self._step_limit_hit = False
         self._user_stack = []
+        self._recursion_root = None
+        self._recursion_stack = []
+        self._recursion_node_count = 0
 
         timer = threading.Timer(EXECUTION_TIMEOUT, self._trigger_timeout)
         timer.daemon = True
@@ -206,7 +221,7 @@ class PyTracer:
         if self._step_limit_hit and error is None:
             error = f"Trace truncated: exceeded {MAX_STEPS} steps"
 
-        return self._steps, error
+        return self._steps, error, self._recursion_root
 
     # ------------------------------------------------------------------
     # Private
@@ -295,11 +310,47 @@ class PyTracer:
         self._steps.append(step)
         self._prev_locals = serialized_locals.copy()
 
+        # ── Maintain recursion/call tree ────────────────────────────────
+        if event == "call":
+            self._push_recursion_node(
+                fn_name=frame.f_code.co_name,
+                args=serialized_locals,
+                depth=len(self._user_stack) - 1,
+                step_index=len(self._steps) - 1,
+            )
+        elif event == "return":
+            self._pop_recursion_node(return_value)
+
         # Pop frame AFTER recording the step (so return shows the function).
         if event == "return" and self._user_stack:
             self._user_stack.pop()
 
         return self._trace_dispatch
+
+    def _push_recursion_node(self, fn_name: str, args: dict[str, Any], depth: int, step_index: int) -> None:
+        """Add a new node to the recursion tree on a 'call' event."""
+        if self._recursion_node_count >= _MAX_RECURSION_NODES:
+            self._recursion_stack.append(None)
+            return
+
+        node = RecursionNode(fn_name=fn_name, args=args, depth=depth, step_index=step_index)
+        self._recursion_node_count += 1
+
+        if self._recursion_stack:
+            parent = self._recursion_stack[-1]
+            if parent is not None:
+                parent.children.append(node)
+        else:
+            self._recursion_root = node
+
+        self._recursion_stack.append(node)
+
+    def _pop_recursion_node(self, return_value: Any) -> None:
+        """Record the return value for the node opened by 'call' on a 'return' event."""
+        if self._recursion_stack:
+            node = self._recursion_stack.pop()
+            if node is not None:
+                node.return_value = return_value
 
 
 # ---------------------------------------------------------------------------
@@ -309,15 +360,15 @@ class PyTracer:
 def trace_code(
     code: str,
     inputs: dict[str, Any],
-) -> tuple[list[TraceStep], str | None, list[str]]:
+) -> tuple[list[TraceStep], str | None, list[str], RecursionNode | None]:
     """
     Preprocess (strip self/cls, type annotations, fix call site), then trace.
 
     Returns:
-        (steps, error_or_None, preprocessing_notes)
+        (steps, error_or_None, preprocessing_notes, recursion_tree_or_None)
     """
     from services.preprocessor import preprocess  # local import avoids circular
     processed_code, notes = preprocess(code)
     tracer = PyTracer()
-    steps, error = tracer.run(processed_code, inputs)
-    return steps, error, notes
+    steps, error, recursion_tree = tracer.run(processed_code, inputs)
+    return steps, error, notes, recursion_tree

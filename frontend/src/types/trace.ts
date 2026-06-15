@@ -15,11 +15,21 @@ export interface TraceStep {
   changed_vars: string[];
 }
 
+export interface RecursionNode {
+  fn_name: string;
+  args: Record<string, unknown>;
+  return_value?: unknown;
+  children: RecursionNode[];
+  depth: number;
+  step_index: number;
+}
+
 export interface TraceResult {
   steps: TraceStep[];
   total_steps: number;
   error?: string;
   notes?: string[];  // preprocessing transformations applied (e.g. "Stripped self")
+  recursion_tree?: RecursionNode | null;
 }
 
 export interface TraceRequest {

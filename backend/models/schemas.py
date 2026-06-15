@@ -33,6 +33,17 @@ class TraceStep(BaseModel):
     changed_vars: list[str] = Field(default_factory=list)
 
 
+class RecursionNode(BaseModel):
+    """A single call frame in the recursion/call tree (Phase 7 Section 3)."""
+
+    fn_name: str
+    args: dict[str, Any]
+    return_value: Any = None
+    children: list["RecursionNode"] = Field(default_factory=list)
+    depth: int
+    step_index: int
+
+
 class TraceResponse(BaseModel):
     """Response body for POST /trace."""
 
@@ -42,6 +53,10 @@ class TraceResponse(BaseModel):
     notes: list[str] = Field(
         default_factory=list,
         description="Human-readable list of preprocessing transformations applied",
+    )
+    recursion_tree: RecursionNode | None = Field(
+        default=None,
+        description="Call tree rooted at <module>, used to render the recursion visualizer",
     )
 
 

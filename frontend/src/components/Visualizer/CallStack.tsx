@@ -1,8 +1,7 @@
 // PyTrace - Call stack viewer (VS Code colors)
 
 import { useTraceStore } from '../../store/traceStore';
-
-const DEPTH_COLORS = ['#dcdcaa', '#9cdcfe', '#4ec9b0', '#ce9178'];
+import { DEPTH_COLORS } from '../../lib/depthColors';
 
 export default function CallStack() {
   const currentStep = useTraceStore((s) => s.currentStep);

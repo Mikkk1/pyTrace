@@ -7,6 +7,7 @@ import CollectionsPanel from './components/Visualizer/CollectionsPanel';
 import VariablePanel from './components/Visualizer/VariablePanel';
 import CallStack from './components/Visualizer/CallStack';
 import ComplexityPanel from './components/Visualizer/ComplexityPanel';
+import RecursionTree from './components/Visualizer/RecursionTree';
 import StepControls from './components/Controls/StepControls';
 import TestCaseInput from './components/Editor/TestCaseInput';
 import Header from './components/Layout/Header';
@@ -16,6 +17,7 @@ import { useTraceStore, type SectionId } from './store/traceStore';
 import { useTracer } from './hooks/useTracer';
 import { isCollectionValue, filterDataLocals } from './lib/collections';
 import { parseError } from './lib/errorHints';
+import { isRecursiveTrace } from './lib/recursionTree';
 import { getSnippet, type AnalyzeResult } from './lib/api';
 
 const DEFAULT_CODE = `def two_sum(nums, target):
@@ -30,7 +32,7 @@ const DEFAULT_CODE = `def two_sum(nums, target):
 result = two_sum(nums, target)
 `;
 
-const SECTION_ORDER: SectionId[] = ['arrays', 'variables', 'callStack', 'complexity'];
+const SECTION_ORDER: SectionId[] = ['arrays', 'variables', 'callStack', 'complexity', 'recursionTree'];
 const LIVE_DEBOUNCE_MS = 600;
 
 export default function App() {
@@ -58,6 +60,8 @@ export default function App() {
   const setStepIdx  = useTraceStore((s) => s.setCurrentStepIndex);
   const mode        = useTraceStore((s) => s.mode);
   const currStep    = useTraceStore((s) => s.currentStep);
+  const result      = useTraceStore((s) => s.result);
+  const steps       = useTraceStore((s) => s.steps);
   const sectionCollapsed   = useTraceStore((s) => s.sectionCollapsed);
   const adjustSectionSizes = useTraceStore((s) => s.adjustSectionSizes);
 
@@ -142,11 +146,16 @@ export default function App() {
     setAnalyseResult(null); setAnalyseError(null);
   };
 
-  // Find the next non-collapsed section after `from`, for resize-handle pairing
+  // RECURSION TREE auto-appears only when the trace actually recurses
+  // (same function name appears more than once in a call stack).
+  const showRecursionTree = !!result?.recursion_tree && isRecursiveTrace(steps);
+  const visibleSections = SECTION_ORDER.filter((id) => id !== 'recursionTree' || showRecursionTree);
+
+  // Find the next non-collapsed, visible section after `from`, for resize-handle pairing
   const nextExpandedSection = (from: SectionId): SectionId | null => {
-    const idx = SECTION_ORDER.indexOf(from);
-    for (let i = idx + 1; i < SECTION_ORDER.length; i++) {
-      if (!sectionCollapsed[SECTION_ORDER[i]]) return SECTION_ORDER[i];
+    const idx = visibleSections.indexOf(from);
+    for (let i = idx + 1; i < visibleSections.length; i++) {
+      if (!sectionCollapsed[visibleSections[i]]) return visibleSections[i];
     }
     return null;
   };
@@ -233,7 +242,8 @@ export default function App() {
               id="complexity"
               title="COMPLEXITY"
               background="#1a1a1a"
-              showHandle={false}
+              showHandle={!sectionCollapsed.complexity && nextExpandedSection('complexity') !== null}
+              onHandleMouseDown={startSectionResize('complexity', nextExpandedSection('complexity'))}
             >
               <ComplexityPanel
                 result={analyseResult}
@@ -241,6 +251,17 @@ export default function App() {
                 error={analyseError}
               />
             </SidebarSection>
+
+            {showRecursionTree && (
+              <SidebarSection
+                id="recursionTree"
+                title="RECURSION TREE"
+                background="#1a1a1a"
+                showHandle={false}
+              >
+                <RecursionTree />
+              </SidebarSection>
+            )}
           </div>
         </aside>
       </div>

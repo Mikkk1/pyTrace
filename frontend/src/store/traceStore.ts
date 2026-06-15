@@ -5,13 +5,14 @@ import type { TraceResult, TraceStep } from '../types/trace';
 
 export type AppMode = 'trace' | 'live';
 
-export type SectionId = 'arrays' | 'variables' | 'callStack' | 'complexity';
+export type SectionId = 'arrays' | 'variables' | 'callStack' | 'complexity' | 'recursionTree';
 
 const DEFAULT_SECTION_SIZES: Record<SectionId, number> = {
   arrays: 0.30,
   variables: 0.35,
   callStack: 0.20,
   complexity: 0.15,
+  recursionTree: 0.25,
 };
 
 const DEFAULT_SECTION_COLLAPSED: Record<SectionId, boolean> = {
@@ -19,6 +20,7 @@ const DEFAULT_SECTION_COLLAPSED: Record<SectionId, boolean> = {
   variables: false,
   callStack: false,
   complexity: true,
+  recursionTree: false,
 };
 
 interface TraceState {

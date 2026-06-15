@@ -32,7 +32,7 @@ async def run_trace(request: Request, body: TraceRequest) -> TraceResponse:
         )
 
     try:
-        steps, error, notes = trace_code(body.code, body.inputs)
+        steps, error, notes, recursion_tree = trace_code(body.code, body.inputs)
     except SandboxViolation as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -45,4 +45,5 @@ async def run_trace(request: Request, body: TraceRequest) -> TraceResponse:
         total_steps=len(steps),
         error=error,
         notes=notes,
+        recursion_tree=recursion_tree,
     )
