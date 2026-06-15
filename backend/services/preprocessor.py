@@ -82,9 +82,15 @@ def _unwrap_class(code: str) -> tuple[str, bool]:
 # ---------------------------------------------------------------------------
 
 def _strip_self_cls(code: str) -> str:
-    """Remove self and cls from all def parameter lists."""
+    """Remove self and cls from def parameter lists and method-call sites.
+
+    Handles both `def foo(self, ...)` declarations and intra-class calls
+    like `self.dfs(grid, i, j)`, which become bare `dfs(grid, i, j)` once
+    the class wrapper is removed and methods become top-level functions.
+    """
     code = re.sub(r'(\bdef\s+\w+\s*\(\s*)(?:self|cls)\s*,\s*', r'\1', code)
     code = re.sub(r'(\bdef\s+\w+\s*\(\s*)(?:self|cls)\s*\)', r'\1)', code)
+    code = re.sub(r'\b(?:self|cls)\.(\w+)\s*\(', r'\1(', code)
     return code
 
 

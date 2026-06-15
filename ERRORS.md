@@ -112,3 +112,10 @@
 **Fix:** `applyLiveResult()` now only keeps the prior visualization untouched when `result.steps.length === 0` (e.g. a SyntaxError with zero execution). Otherwise it updates `result`/`steps`/`totalSteps`/`currentStepIndex`/`currentStep` to the last captured step AND sets `liveError` (instead of just `liveError` alone), so panels reflect the state immediately before the crash.
 **File:** frontend/src/store/traceStore.ts
 **Discovered:** PHASE-7 Section 2 spec requirement ("Variables captured BEFORE the error still show in panels").
+
+### [2026-06-15] Number of Islands (multi-method class) failed with "NameError: name 'self' is not defined"
+**Error:** `_strip_self_cls()` in `backend/services/preprocessor.py` only removed `self`/`cls` from `def` parameter lists. After `_unwrap_class()` turns `numIslands`/`dfs` into top-level functions, intra-class calls like `self.dfs(grid, i, j)` still referenced `self`, which no longer exists, raising `NameError: name 'self' is not defined` at the first call site.
+**Fix:** `_strip_self_cls()` now also rewrites method-call sites with `re.sub(r'\b(?:self|cls)\.(\w+)\s*\(', r'\1(', code)`, turning `self.dfs(grid, i, j)` into `dfs(grid, i, j)`.
+**File:** backend/services/preprocessor.py
+**Discovered:** PHASE-7 Section 5 Test 8 (Number of Islands, two-method `Solution` class with `self.dfs(...)` recursive calls).
+**Note:** Also had to restart the backend `uvicorn --reload` process — the running dev server (started in a prior session) was not picking up the source edit via its file watcher.
