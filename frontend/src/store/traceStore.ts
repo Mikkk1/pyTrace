@@ -119,19 +119,21 @@ export const useTraceStore = create<TraceState>((set, get) => ({
   setLiveError: (error) => set({ liveError: error }),
 
   applyLiveResult: (result) => {
-    if (result.error) {
-      // Keep the existing visualization on screen; surface the error separately
-      // without touching steps/currentStep.
+    if (result.error && result.steps.length === 0) {
+      // No steps captured at all (e.g. SyntaxError) — keep the existing
+      // visualization on screen, surface the error separately.
       set({ liveError: result.error, notes: result.notes ?? [] });
       return;
     }
+    // Either no error, or an error with steps captured before the crash —
+    // show the last captured step so panels reflect pre-crash state.
     const lastIndex = Math.max(0, result.steps.length - 1);
     set({
       result,
       steps: result.steps,
       totalSteps: result.total_steps,
       error: null,
-      liveError: null,
+      liveError: result.error ?? null,
       notes: result.notes ?? [],
       currentStepIndex: lastIndex,
       currentStep: result.steps[lastIndex] ?? null,

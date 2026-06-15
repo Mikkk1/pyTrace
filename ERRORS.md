@@ -106,3 +106,9 @@
 **Fix:** Added `frontend/.env.local` (gitignored, overrides `.env`) with `VITE_API_URL=http://localhost:8000`, then restarted the Vite dev server (env files are only read at server start).
 **File:** frontend/.env.local (new, not committed)
 **Prevention:** When browser-testing local backend changes, confirm `read_network_requests` shows requests going to `localhost:8000`, not the Render URL.
+
+### [2026-06-15] Live Mode error banner cleared the visualization instead of showing pre-crash state
+**Error:** `applyLiveResult()` in `frontend/src/store/traceStore.ts` early-returned whenever `result.error` was truthy, without ever updating `steps`/`currentStep`/`totalSteps` — even when the backend captured many valid steps before the exception (tracer.py always appends to `self._steps` before re-raising). COLLECTIONS/VARIABLES/CALL STACK kept showing whatever was on screen before the edit (often empty on first run), not the actual pre-crash state.
+**Fix:** `applyLiveResult()` now only keeps the prior visualization untouched when `result.steps.length === 0` (e.g. a SyntaxError with zero execution). Otherwise it updates `result`/`steps`/`totalSteps`/`currentStepIndex`/`currentStep` to the last captured step AND sets `liveError` (instead of just `liveError` alone), so panels reflect the state immediately before the crash.
+**File:** frontend/src/store/traceStore.ts
+**Discovered:** PHASE-7 Section 2 spec requirement ("Variables captured BEFORE the error still show in panels").

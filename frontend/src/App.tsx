@@ -15,6 +15,7 @@ import SidebarSection from './components/Layout/SidebarSection';
 import { useTraceStore, type SectionId } from './store/traceStore';
 import { useTracer } from './hooks/useTracer';
 import { isCollectionValue, filterDataLocals } from './lib/collections';
+import { parseError } from './lib/errorHints';
 import { getSnippet, type AnalyzeResult } from './lib/api';
 
 const DEFAULT_CODE = `def two_sum(nums, target):
@@ -273,11 +274,18 @@ export default function App() {
         )}
 
         {/* Error */}
-        {displayError && (
-          <div className="px-3 py-1 border-t border-red-900/50 bg-red-950/50 text-red-400 text-xs font-mono">
-            {displayError}
-          </div>
-        )}
+        {displayError && (() => {
+          const { type, message, hint } = parseError(displayError);
+          return (
+            <div className="px-3 py-1.5 border-t border-red-900/50 bg-red-950/50 text-xs font-mono">
+              <div className="text-red-400">
+                <span className="font-bold">{type}</span>
+                {message && <span>: {message}</span>}
+              </div>
+              {hint && <div className="text-red-300/70 mt-0.5">{hint}</div>}
+            </div>
+          );
+        })()}
         {mode === 'trace' && !isLoading && totalSteps === 0 && !error && !inputsError && notes.length === 0 && (
           <div className="px-3 py-1 border-t border-[#3c3c3c] text-[#6b6b6b] text-xs">
             Enter inputs and click Run to start tracing.
