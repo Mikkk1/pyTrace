@@ -183,8 +183,16 @@ export default function App() {
   );
 
   const handleRun = async () => {
-    if (inputsError || inputs === null) return;
-    await runTrace(code || DEFAULT_CODE, inputs);
+    const codeToRun = code || DEFAULT_CODE;
+    const hasDef = codeToRun.split('\n').some((ln) => /^def\s/.test(ln.trim()));
+    if (!hasDef) {
+      // Scratchpad-style code: no function definitions, so no pre-seeded inputs.
+      // Run with an empty globals dict so only variables defined in the code appear.
+      await runTrace(codeToRun, {});
+    } else {
+      if (inputsError || inputs === null) return;
+      await runTrace(codeToRun, inputs);
+    }
     setAnalyseResult(null); setAnalyseError(null);
   };
 
