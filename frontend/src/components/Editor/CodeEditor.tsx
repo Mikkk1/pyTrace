@@ -3,6 +3,7 @@
 import { useRef, useEffect, useCallback } from 'react';
 import MonacoEditor, { type OnMount } from '@monaco-editor/react';
 import type * as Monaco from 'monaco-editor';
+import { Trash2 } from 'lucide-react';
 import { useTraceStore } from '../../store/traceStore';
 
 const HIGHLIGHT_CLASS = 'pytrace-current-line';
@@ -37,8 +38,14 @@ export default function CodeEditor() {
 
   const code = useTraceStore((s) => s.code);
   const setCode = useTraceStore((s) => s.setCode);
+  const reset = useTraceStore((s) => s.reset);
   const currentStep = useTraceStore((s) => s.currentStep);
   const mode = useTraceStore((s) => s.mode);
+
+  const handleClear = useCallback(() => {
+    setCode('');
+    reset();
+  }, [setCode, reset]);
 
   // Apply / remove line highlight whenever the current step changes
   useEffect(() => {
@@ -149,6 +156,17 @@ export default function CodeEditor() {
   }, [mode]);
 
   return (
+    <div className="relative h-full">
+      {mode === 'live' && (
+        <button
+          type="button"
+          onClick={handleClear}
+          title="Clear editor and visualization"
+          className="absolute top-2 right-3 z-10 p-1 rounded text-[#6b6b6b] hover:text-[#cc6666] hover:bg-[#2a2a2a] transition-colors"
+        >
+          <Trash2 size={14} />
+        </button>
+      )}
     <MonacoEditor
       height="100%"
       language="python"
@@ -183,5 +201,6 @@ export default function CodeEditor() {
         },
       }}
     />
+    </div>
   );
 }

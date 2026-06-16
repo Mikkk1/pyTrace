@@ -71,6 +71,7 @@ export default function App() {
   const popoutWindowRef = useRef<Window | null>(null);
 
   const { runTrace, runTraceLive } = useTracer();
+  const reset = useTraceStore((s) => s.reset);
   const inputsRef = useRef<Record<string, unknown>>({});
   useEffect(() => { inputsRef.current = inputs ?? {}; }, [inputs]);
 
@@ -123,16 +124,24 @@ export default function App() {
   }, [adjustSectionSizes]);
 
   // Live Mode: debounced auto-rerun on every code change.
-  // Always passes an empty inputs dict — Live Mode variables are defined in
-  // the scratchpad itself, not via the Inputs bar (hidden in Live Mode).
+  // Empty / comment-only editor clears all panels immediately (no API call).
+  // Non-empty code runs after LIVE_DEBOUNCE_MS; always passes {} as inputs —
+  // variables are defined in the scratchpad itself, not via the Inputs bar.
   useEffect(() => {
     if (mode !== 'live') return;
-    const codeToRun = code || DEFAULT_CODE;
+    const trimmed = code.trim();
+    const hasExecutable = trimmed.split('\n').some(
+      (ln) => ln.trim() && !ln.trim().startsWith('#'),
+    );
+    if (!trimmed || !hasExecutable) {
+      reset();
+      return;
+    }
     const timer = setTimeout(() => {
-      runTraceLive(codeToRun, {});
+      runTraceLive(code, {});
     }, LIVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [mode, code, runTraceLive]);
+  }, [mode, code, reset, runTraceLive]);
 
   // Detachable visualizer popout: poll for the user closing the window directly
   useEffect(() => {

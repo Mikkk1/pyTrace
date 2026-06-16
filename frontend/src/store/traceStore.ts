@@ -145,29 +145,24 @@ export const useTraceStore = create<TraceState>((set, get) => ({
       currentStepIndex: 0,
       currentStep: null,
       error: null,
+      liveError: null,
       notes: [],
     }),
 
   setMode: (mode) => {
-    if (mode === 'live') {
-      // Clear all Trace Mode state so stale steps / inputs-seeded variables
-      // don't bleed into the Live Mode scratchpad namespace.
-      set({
-        mode,
-        result: null,
-        steps: [],
-        totalSteps: 0,
-        currentStepIndex: 0,
-        currentStep: null,
-        error: null,
-        liveError: null,
-        notes: [],
-      });
-    } else {
-      // Switching back to Trace Mode — clear any live error so the banner
-      // doesn't persist from the previous Live session.
-      set({ mode, liveError: null });
-    }
+    // Always wipe all visualization state on mode switch so no data from
+    // the previous mode leaks into the new one.
+    set({
+      mode,
+      result: null,
+      steps: [],
+      totalSteps: 0,
+      currentStepIndex: 0,
+      currentStep: null,
+      error: null,
+      liveError: null,
+      notes: [],
+    });
   },
 
   setLiveError: (error) => set({ liveError: error }),
