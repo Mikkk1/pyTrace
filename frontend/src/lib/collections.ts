@@ -61,7 +61,7 @@ function kindOf(value: unknown): CollectionKind | null {
     }
     return null;
   }
-  if (isPlainDict(value)) return Object.keys(value).length > 0 ? 'dict' : null;
+  if (isPlainDict(value)) return 'dict';
   return null;
 }
 
@@ -145,7 +145,7 @@ export function collectionSummaryLabel(value: unknown): string | null {
   }
   if (isPlainDict(value)) {
     const n = Object.keys(value).length;
-    return n > 0 ? `Dict{${n}}` : null;
+    return `Dict{${n}}`;
   }
   return null;
 }

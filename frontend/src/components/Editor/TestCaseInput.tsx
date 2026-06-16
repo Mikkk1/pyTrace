@@ -14,7 +14,7 @@ function parseParams(code: string): string[] {
 
 const DEFAULTS: Record<string, string> = {
   nums: '[-1,0,1,2,-1,-4]', target: '9', n: '5',
-  arr: '[3,1,4,1,5]', s: '"hello"', k: '2', x: '10',
+  arr: '[3,1,4,1,5]', s: '"hello"', t: '"ABC"', k: '2', x: '10',
 };
 const defaultFor = (name: string) => DEFAULTS[name] ?? 'null';
 

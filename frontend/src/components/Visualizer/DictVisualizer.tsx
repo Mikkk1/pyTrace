@@ -39,6 +39,9 @@ const DictVisualizer: FC<Props> = ({ varName, value, badge }) => {
     <div>
       <CollectionLabel varName={varName} badge={badge} />
       <div className="mt-1 flex flex-col gap-0.5 max-w-[260px]">
+        {entries.length === 0 && (
+          <div className="text-[#6b6b6b] text-[11px] font-mono px-2 py-0.5 italic">empty</div>
+        )}
         {display.map(([k, v]) => {
           if (Array.isArray(v)) {
             const cells = v.slice(0, MAX_NESTED_CELLS);
