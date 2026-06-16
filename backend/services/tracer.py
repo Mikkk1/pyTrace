@@ -17,7 +17,8 @@ import sys
 import copy
 import threading
 import types
-from collections import Counter, deque
+import math
+from collections import Counter, defaultdict, deque
 from typing import Any
 
 from services.sandbox import (
@@ -56,7 +57,15 @@ def _serialize(value: Any, depth: int = 0) -> Any:
     if depth > 6:
         return "<...>"
 
-    if value is None or isinstance(value, (bool, int, float)):
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if math.isnan(value):
+            return 'NaN'
+        if math.isinf(value):
+            return 'Infinity' if value > 0 else '-Infinity'
         return value
 
     if isinstance(value, str):
@@ -76,12 +85,19 @@ def _serialize(value: Any, depth: int = 0) -> Any:
             return {"__type__": "tuple", "items": items}
         return items
 
-    # Counter is a dict subclass — check before the generic dict branch so it
-    # renders as char:count badges instead of plain key->value rows.
+    # Counter and defaultdict are dict subclasses — check before the generic dict
+    # branch so they render with their correct type badges.
     if isinstance(value, Counter):
         truncated = dict(list(value.items())[:_MAX_COLLECTION_LENGTH])
         return {
             "__type__": "counter",
+            "items": {str(k): _serialize(v, depth + 1) for k, v in truncated.items()},
+        }
+
+    if isinstance(value, defaultdict):
+        truncated = dict(list(value.items())[:_MAX_COLLECTION_LENGTH])
+        return {
+            "__type__": "defaultdict",
             "items": {str(k): _serialize(v, depth + 1) for k, v in truncated.items()},
         }
 
@@ -200,6 +216,8 @@ class PyTracer:
         timer.daemon = True
         error: str | None = None
 
+        orig_recursion_limit = sys.getrecursionlimit()
+        sys.setrecursionlimit(500)
         try:
             timer.start()
             sys.settrace(self._trace_dispatch)
@@ -215,6 +233,7 @@ class PyTracer:
                 sys.settrace(None)
         finally:
             timer.cancel()
+            sys.setrecursionlimit(orig_recursion_limit)
 
         if self._timed_out and error is None:
             error = f"Execution timed out after {EXECUTION_TIMEOUT}s"

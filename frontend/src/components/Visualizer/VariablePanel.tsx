@@ -33,6 +33,10 @@ function formatValue(v: unknown): { text: string; color: string } {
   if (typeof v === 'boolean') return { text: v ? 'True' : 'False', color: v ? '#4ec9b0' : '#f44747' };
   if (typeof v === 'number') return { text: String(v), color: '#b5cea8' };
   if (typeof v === 'string') {
+    // Special float sentinels serialized by backend for non-finite values
+    if (v === 'Infinity') return { text: '∞', color: '#b5cea8' };
+    if (v === '-Infinity') return { text: '-∞', color: '#b5cea8' };
+    if (v === 'NaN') return { text: 'NaN', color: '#569cd6' };
     if (v.startsWith('<')) return { text: v.slice(0, 50), color: '#6b6b6b' };
     const t = v.length > 48 ? v.slice(0, 48) + '...' : v;
     return { text: `"${t}"`, color: '#ce9178' };
@@ -42,6 +46,11 @@ function formatValue(v: unknown): { text: string; color: string } {
     return { text: `Counter(${n})`, color: '#dcdcaa' };
   }
   if (isSpecialObj(v)) {
+    if (v.__type__ === 'defaultdict') {
+      const items = (v as unknown as { items: Record<string, unknown> }).items ?? {};
+      const n = Object.keys(items).length;
+      return { text: `defaultdict{${n}}`, color: '#dcdcaa' };
+    }
     const items = (v.items as unknown[]) ?? [];
     if (v.__type__ === 'set') {
       if (items.length === 0) return { text: 'set()', color: '#4ec9b0' };

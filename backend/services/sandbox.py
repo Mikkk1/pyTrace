@@ -4,7 +4,15 @@ Validates user code before execution and provides a restricted globals
 namespace that blocks dangerous builtins and imports.
 """
 
+import bisect
 import builtins
+import collections
+import functools
+import heapq
+import itertools
+import math
+import string
+import typing
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -117,8 +125,8 @@ BLOCKED_BUILTINS: frozenset[str] = frozenset([
 ])
 
 MAX_CODE_LENGTH: int = 5_000       # characters
-EXECUTION_TIMEOUT: int = 5         # seconds
-MAX_STEPS: int = 10_000            # prevent infinite loops
+EXECUTION_TIMEOUT: int = 8         # seconds
+MAX_STEPS: int = 50_000            # prevent infinite loops
 RATE_LIMIT: int = 20               # requests per IP per minute
 
 
@@ -214,5 +222,33 @@ def build_restricted_globals(inputs: dict[str, Any]) -> dict[str, Any]:
         "__name__": "__pytrace__",
         "__doc__": None,
     }
+
+    # Pre-seed common DSA imports so users can use them without explicit imports.
+    # These are read-only references — the sandbox's safe_import still gates any
+    # explicit `import` calls the user code makes.
+    safe_globals: dict[str, Any] = {
+        # collections
+        "Counter": collections.Counter,
+        "defaultdict": collections.defaultdict,
+        "deque": collections.deque,
+        "OrderedDict": collections.OrderedDict,
+        # heapq, math, bisect
+        "heapq": heapq,
+        "math": math,
+        "bisect": bisect,
+        "string": string,
+        "itertools": itertools,
+        "functools": functools,
+        "inf": math.inf,
+        # typing shims (used in type hints that survive annotation stripping)
+        "List": typing.List,
+        "Dict": typing.Dict,
+        "Set": typing.Set,
+        "Tuple": typing.Tuple,
+        "Optional": typing.Optional,
+        "Union": typing.Union,
+        "Any": typing.Any,
+    }
+    restricted.update(safe_globals)
     restricted.update(inputs)
     return restricted

@@ -119,3 +119,9 @@
 **File:** backend/services/preprocessor.py
 **Discovered:** PHASE-7 Section 5 Test 8 (Number of Islands, two-method `Solution` class with `self.dfs(...)` recursive calls).
 **Note:** Also had to restart the backend `uvicorn --reload` process — the running dev server (started in a prior session) was not picking up the source edit via its file watcher.
+
+### [2026-06-16] _fix_call_site() corrupting float("inf") inside function bodies
+**Error:** `coinChange` returned "TypeError: coinChange() missing 1 required positional argument: 'amount'" because `_fix_call_site()` mutated `float("inf")` to `coinChange("inf")` inside the function body. The last non-blank line (`    return dp[amount] if dp[amount] != float("inf") else -1`) is indented (inside the function), yet `ast.parse("return x", mode='exec')` succeeds — Python's AST parser accepts `return` outside a function without raising SyntaxError (only the compiler rejects it). `ast.walk` then found `float` as a Call node, and since `"float"` ∉ user-defined functions, `_fix_call_site` replaced it with `"coinChange"`.
+**Fix:** Added early-return guard in `_fix_call_site()`: if `last_line[0].isspace()` (the last non-blank line is indented), return immediately — only top-level (column-0) lines are valid call sites to fix.
+**File:** backend/services/preprocessor.py
+**Discovered:** PHASE-8 Section 10, coinChange test — `float("inf")` DP initialization.

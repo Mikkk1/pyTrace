@@ -3,7 +3,10 @@
 
 import { useTraceStore } from '../../store/traceStore';
 import { buildPointerIndices } from '../../lib/pointerDetector';
-import { collectCollections, getRoleBadge, isHeapName, type SpecialObj, type CounterObj } from '../../lib/collections';
+import {
+  collectCollections, getRoleBadge, isHeapName,
+  type SpecialObj, type CounterObj, type DefaultDictObj,
+} from '../../lib/collections';
 import ArrayVisualizer from './ArrayVisualizer';
 import MatrixVisualizer from './MatrixVisualizer';
 import DequeVisualizer from './DequeVisualizer';
@@ -120,6 +123,12 @@ export default function CollectionsPanel() {
             return (
               <DictVisualizer key={name} varName={name} value={value as Record<string, unknown>} badge={badge} />
             );
+          case 'defaultdict': {
+            const dd = value as unknown as DefaultDictObj;
+            return (
+              <DictVisualizer key={name} varName={name} value={dd.items} badge={badge ?? 'defaultdict'} />
+            );
+          }
           default:
             return null;
         }

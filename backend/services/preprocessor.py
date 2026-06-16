@@ -236,6 +236,11 @@ def _fix_call_site(code: str) -> str:
     if last_idx == -1:
         return code
 
+    # Only attempt a fix for top-level (unindented) lines.
+    # Indented lines are inside a function/loop body and must not be touched.
+    if last_line and last_line[0].isspace():
+        return code
+
     try:
         last_tree = ast.parse(last_line.strip(), mode='eval')
     except SyntaxError:
@@ -269,10 +274,8 @@ def _auto_add_call_site(code: str) -> tuple[str, bool]:
     """
     If no top-level call exists, generate one for the first non-dunder function.
 
-    Param extraction uses regex on the actual def line (after all earlier
-    transformations have run, so self/cls and type annotations are already gone).
-    Required params are listed first, params with defaults last — matching how
-    Python enforces signature order.
+    Param extraction uses AST exclusively — annotations and self/cls are already
+    stripped by earlier pipeline steps, so arg.arg gives clean parameter names.
     Example: appends 'result = lengthOfLongestSubstring(s)'
     """
     try:
@@ -297,45 +300,10 @@ def _auto_add_call_site(code: str) -> tuple[str, bool]:
             return code, False
 
     fn_name = func_nodes[0].name
-
-    # Find the def line for this function in the (already-cleaned) code
-    def_line = ''
-    for line in code.split('\n'):
-        if re.match(rf'^\s*def\s+{re.escape(fn_name)}\s*\(', line):
-            def_line = line
-            break
-
-    required: list[str] = []
-    optional: list[str] = []
-
-    if def_line:
-        # Extract everything between the outermost ( ) of the def signature
-        m = re.search(r'def\s+\w+\s*\(([^)]*)\)', def_line)
-        if m:
-            for p in m.group(1).split(','):
-                p = p.strip()
-                if not p:
-                    continue
-                # Strip type annotation (text after ':')
-                p = p.split(':')[0].strip()
-                # Separate name from default value
-                if '=' in p:
-                    name = p.split('=', 1)[0].strip().lstrip('*')
-                    if name and name not in ('self', 'cls'):
-                        optional.append(name)
-                else:
-                    name = p.lstrip('*')
-                    if name and name not in ('self', 'cls'):
-                        required.append(name)
-
-    params = required + optional  # required params first, defaulted params last
-
-    if not params:
-        # Fallback: pull directly from AST (handles multi-line defs)
-        params = [
-            a.arg for a in func_nodes[0].args.args
-            if a.arg not in ('self', 'cls')
-        ]
+    params = [
+        a.arg for a in func_nodes[0].args.args
+        if a.arg not in ('self', 'cls')
+    ]
 
     call_args = ', '.join(params)
     call_line = f'result = {fn_name}({call_args})'

@@ -1,5 +1,5 @@
 // PyTrace — Shared helpers for classifying collection-typed locals
-// (str/list/matrix/deque/set/counter/dict/tuple) and filtering out
+// (str/list/matrix/deque/set/counter/dict/defaultdict/tuple) and filtering out
 // non-data variables (functions, dunders, modules) from both panels.
 
 export interface SpecialObj {
@@ -10,6 +10,11 @@ export interface SpecialObj {
 export interface CounterObj {
   __type__: 'counter';
   items: Record<string, number>;
+}
+
+export interface DefaultDictObj {
+  __type__: 'defaultdict';
+  items: Record<string, unknown>;
 }
 
 export function isSpecialObj(v: unknown): v is SpecialObj {
@@ -24,11 +29,15 @@ export function isCounterObj(v: unknown): v is CounterObj {
   return isSpecialObj(v) && v.__type__ === 'counter';
 }
 
+export function isDefaultDictObj(v: unknown): v is DefaultDictObj {
+  return isSpecialObj(v) && v.__type__ === 'defaultdict';
+}
+
 export function isPlainDict(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v) && !isSpecialObj(v);
 }
 
-export type CollectionKind = 'str' | 'list' | 'matrix' | 'deque' | 'set' | 'counter' | 'dict' | 'tuple';
+export type CollectionKind = 'str' | 'list' | 'matrix' | 'deque' | 'set' | 'counter' | 'dict' | 'defaultdict' | 'tuple';
 
 export interface CollectionEntry {
   name: string;
@@ -37,7 +46,16 @@ export interface CollectionEntry {
 }
 
 // Display priority for the COLLECTIONS panel.
-const KIND_ORDER: CollectionKind[] = ['str', 'list', 'matrix', 'deque', 'set', 'counter', 'dict', 'tuple'];
+const KIND_ORDER: CollectionKind[] = ['str', 'list', 'matrix', 'deque', 'set', 'counter', 'dict', 'defaultdict', 'tuple'];
+
+// Sentinel strings used to represent non-finite Python floats (Infinity, -Infinity, NaN).
+// These must NOT be treated as ordinary strings (no char-grid, no str(N) label).
+const FLOAT_SENTINELS = new Set(['Infinity', '-Infinity', 'NaN']);
+
+/** True if a string value is a special float sentinel from the backend. */
+function isFloatSentinel(v: unknown): boolean {
+  return typeof v === 'string' && FLOAT_SENTINELS.has(v);
+}
 
 /** True if every element of a non-empty array is itself an array (2D matrix/grid). */
 function isMatrix(value: unknown[]): boolean {
@@ -45,7 +63,10 @@ function isMatrix(value: unknown[]): boolean {
 }
 
 function kindOf(value: unknown): CollectionKind | null {
-  if (typeof value === 'string') return value.length > 0 ? 'str' : null;
+  if (typeof value === 'string') {
+    if (isFloatSentinel(value)) return null;
+    return value.length > 0 ? 'str' : null;
+  }
   if (Array.isArray(value)) {
     if (value.length === 0) return null;
     return isMatrix(value) ? 'matrix' : 'list';
@@ -59,6 +80,7 @@ function kindOf(value: unknown): CollectionKind | null {
       const counterItems = (value as unknown as CounterObj).items ?? {};
       return Object.keys(counterItems).length > 0 ? 'counter' : null;
     }
+    if (value.__type__ === 'defaultdict') return 'defaultdict';
     return null;
   }
   if (isPlainDict(value)) return 'dict';
@@ -117,12 +139,15 @@ export function collectCollections(locals: Record<string, unknown>, currentFnNam
 
 /**
  * Returns a short summary label (e.g. "Array[6]", "Matrix[3x3]", "str(5)",
- * "set(3)", "Dict{2}", "tuple(4)", "deque(4)", "Counter(3)") for a non-empty
- * collection, or null if `value` isn't one.
+ * "set(3)", "Dict{2}", "defaultdict{1}", "tuple(4)", "deque(4)", "Counter(3)")
+ * for a collection, or null if `value` isn't one.
  * Used by VariablePanel to render a single dedup summary row per collection.
  */
 export function collectionSummaryLabel(value: unknown): string | null {
-  if (typeof value === 'string') return value.length > 0 ? `str(${value.length})` : null;
+  if (typeof value === 'string') {
+    if (isFloatSentinel(value)) return null;
+    return value.length > 0 ? `str(${value.length})` : null;
+  }
   if (Array.isArray(value)) {
     if (value.length === 0) return null;
     if (isMatrix(value)) {
@@ -141,6 +166,10 @@ export function collectionSummaryLabel(value: unknown): string | null {
       const n = Object.keys((value as unknown as CounterObj).items ?? {}).length;
       return n > 0 ? `Counter(${n})` : null;
     }
+    if (value.__type__ === 'defaultdict') {
+      const n = Object.keys((value as unknown as DefaultDictObj).items ?? {}).length;
+      return `defaultdict{${n}}`;
+    }
     return null;
   }
   if (isPlainDict(value)) {
@@ -157,6 +186,9 @@ export function collectionSummaryLabel(value: unknown): string | null {
 const ROLE_BADGES: Record<string, string> = {
   stack: 'stack',
   queue: 'queue',
+  q: 'queue',
+  bfs_queue: 'queue',
+  dfs_stack: 'stack',
   heap: 'heap',
   min_heap: 'heap',
   max_heap: 'heap',
@@ -170,6 +202,7 @@ const ROLE_BADGES: Record<string, string> = {
   adjlist: 'graph',
   visited: 'visited',
   seen: 'visited',
+  explored: 'visited',
   path: 'result',
   result: 'result',
   res: 'result',
