@@ -119,13 +119,14 @@ function buildRows(
   for (const [name, value] of Object.entries(prevLocals)) {
     if (!isDataVariable(name, value, currentFnName)) continue;
     if (!(name in locals)) {
+      const summary = collectionSummaryLabel(value);
       removed.push({
         id: `__gone__${name}`,
         label: name,
-        value,
+        value: summary ?? value,
         isChanged: false,
         isOutOfScope: true,
-        isGroupHeader: false,
+        isGroupHeader: summary !== null,
       });
     }
   }
@@ -151,11 +152,12 @@ function badgeColorFor(value: string): string {
 
 function VarRow({ row }: { row: RowData }) {
   if (row.isGroupHeader) {
-    // Collection summary header: just the name + type badge, no value column
+    // Collection summary header: just the name + type badge, no value column.
+    // Also used for out-of-scope collections (rendered with fade + strikethrough).
     const badgeColor = badgeColorFor(String(row.value));
     return (
-      <div className={`flex items-center gap-1.5 px-2 pt-2 pb-0.5 ${row.isChanged ? 'pytrace-flash rounded' : ''}`}>
-        <span className={`text-xs font-mono font-semibold ${row.isChanged ? 'text-[#dcdcaa]' : 'text-[#9cdcfe]'}`}>
+      <div className={`flex items-center gap-1.5 px-2 pt-2 pb-0.5 ${row.isChanged ? 'pytrace-flash rounded' : ''} ${row.isOutOfScope ? 'opacity-35' : ''}`}>
+        <span className={`text-xs font-mono font-semibold ${row.isOutOfScope ? 'line-through text-[#6b6b6b]' : row.isChanged ? 'text-[#dcdcaa]' : 'text-[#9cdcfe]'}`}>
           {row.label}
         </span>
         <span

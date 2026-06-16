@@ -122,16 +122,17 @@ export default function App() {
     };
   }, [adjustSectionSizes]);
 
-  // Live Mode: debounced auto-rerun on every code/input change
+  // Live Mode: debounced auto-rerun on every code change.
+  // Always passes an empty inputs dict — Live Mode variables are defined in
+  // the scratchpad itself, not via the Inputs bar (hidden in Live Mode).
   useEffect(() => {
     if (mode !== 'live') return;
-    if (inputsError || inputs === null) return;
     const codeToRun = code || DEFAULT_CODE;
     const timer = setTimeout(() => {
-      runTraceLive(codeToRun, inputs);
+      runTraceLive(codeToRun, {});
     }, LIVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [mode, code, inputs, inputsError, runTraceLive]);
+  }, [mode, code, runTraceLive]);
 
   // Detachable visualizer popout: poll for the user closing the window directly
   useEffect(() => {
@@ -207,7 +208,7 @@ export default function App() {
   const collectionsCount = Object.values(locals).filter(isCollectionValue).length;
   const variableCount = Object.keys(locals).length - collectionsCount;
 
-  const displayError = mode === 'live' ? (inputsError ?? liveError) : (inputsError ?? error);
+  const displayError = mode === 'live' ? liveError : (inputsError ?? error);
 
   return (
     <div className="h-screen bg-[#1e1e1e] text-[#d4d4d4] flex flex-col overflow-hidden select-none">
@@ -307,10 +308,10 @@ export default function App() {
       {/* Bottom bar */}
       <div className="shrink-0 border-t border-[#3c3c3c] bg-[#252526]">
 
-        {/* Inputs + Run */}
-        <div className="px-3 py-1.5 flex items-center gap-2 border-b border-[#3c3c3c]">
-          <TestCaseInput onChange={handleInputsChange} />
-          {mode === 'trace' && (
+        {/* Inputs + Run — Trace Mode only; hidden in Live Mode */}
+        {mode === 'trace' && (
+          <div className="px-3 py-1.5 flex items-center gap-2 border-b border-[#3c3c3c]">
+            <TestCaseInput onChange={handleInputsChange} />
             <button
               onClick={handleRun}
               disabled={isLoading || !!inputsError || inputs === null}
@@ -318,8 +319,8 @@ export default function App() {
             >
               {isLoading ? 'Running...' : '▶ Run'}
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Step controls (Trace Mode only) */}
         {mode === 'trace' && <StepControls />}
